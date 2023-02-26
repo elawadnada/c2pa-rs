@@ -305,7 +305,7 @@ impl Store {
     }
 
     /// Returns an Assertion referenced by JUMBF URI.  The URI should be absolute and include
-    /// the desired Claim in the path. If you need to specify the Claim for this URI use  
+    /// the desired Claim in the path. If you need to specify the Claim for this URI use
     /// get_assertion_from_uri_and_claim.
     /// uri - The JUMBF URI for desired Assertion.
     pub fn get_assertion_from_uri(&self, uri: &str) -> Option<&Assertion> {
@@ -1265,7 +1265,7 @@ impl Store {
     /// store: Store to validate
     /// xmp_str: String containing entire XMP block of the asset
     /// asset_bytes: bytes of the asset to be verified
-    /// validation_log: If present all found errors are logged and returned, other wise first error causes exit and is returned  
+    /// validation_log: If present all found errors are logged and returned, other wise first error causes exit and is returned
     pub async fn verify_store_async(
         store: &Store,
         asset_bytes: &[u8],
@@ -1296,7 +1296,7 @@ impl Store {
     /// store: Store to validate
     /// xmp_str: String containing entire XMP block of the asset
     /// asset_bytes: bytes of the asset to be verified
-    /// validation_log: If present all found errors are logged and returned, other wise first error causes exit and is returned  
+    /// validation_log: If present all found errors are logged and returned, other wise first error causes exit and is returned
     pub fn verify_store(
         store: &Store,
         asset_data: &ClaimAssetData<'_>,
@@ -2015,7 +2015,7 @@ impl Store {
 
     /// Verify Store from an existing asset
     /// asset_path: path to input asset
-    /// validation_log: If present all found errors are logged and returned, otherwise first error causes exit and is returned  
+    /// validation_log: If present all found errors are logged and returned, otherwise first error causes exit and is returned
     #[cfg(feature = "file_io")]
     pub fn verify_from_path(
         &mut self,
@@ -2191,7 +2191,7 @@ impl Store {
     /// Load Store from claims in an existing asset
     /// asset_path: path to input asset
     /// verify: determines whether to verify the contents of the provenance claim.  Must be set true to use validation_log
-    /// validation_log: If present all found errors are logged and returned, otherwise first error causes exit and is returned  
+    /// validation_log: If present all found errors are logged and returned, otherwise first error causes exit and is returned
     #[cfg(feature = "file_io")]
     pub fn load_from_asset(
         asset_path: &Path,
@@ -2671,7 +2671,34 @@ pub mod tests {
     }
 
     #[test]
-    #[cfg(feature = "file_io")]
+    #[cfg(all(feature = "file_io", feature = "with_rustls"))]
+    fn test_sign_with_expired_cert() {
+        use crate::{rustls::RustlsSigner, signer::ConfigurableSigner, SigningAlg};
+
+        // test adding to actual image
+        let ap = fixture_path("earth_apollo17.jpg");
+        let temp_dir = tempdir().expect("temp dir");
+        let op = temp_dir_path(&temp_dir, "test-image-expired-cert.jpg");
+
+        let mut store = Store::new();
+
+        let claim = create_test_claim().unwrap();
+
+        let signcert_path = fixture_path("rsa-pss256_key-expired.pub");
+        let pkey_path = fixture_path("rsa-pss256-expired.pem");
+        let signer =
+            RustlsSigner::from_files(signcert_path, pkey_path, SigningAlg::Ps256, None).unwrap();
+
+        store.commit_claim(claim).unwrap();
+
+        // JUMBF generation should fail because the certificate won't validate.
+        let r = store.save_to_asset(&ap, &signer, &op);
+        assert!(r.is_err());
+        assert_eq!(r.err().unwrap().to_string(), "COSE certificate has expired");
+    }
+
+    #[test]
+    #[cfg(all(feature = "file_io", not(feature = "with_rustls")))]
     fn test_sign_with_expired_cert() {
         use crate::{openssl::RsaSigner, signer::ConfigurableSigner, SigningAlg};
 
@@ -3023,7 +3050,6 @@ pub mod tests {
         patch_file(&path, search_bytes, replace_bytes).expect("patch_file");
         let mut report = DetailedStatusTracker::default();
         let _r = Store::load_from_asset(&path, true, &mut report); // errs are in report
-        println!("report: {report:?}");
         report
     }
 
